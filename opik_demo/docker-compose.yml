@@ -1,0 +1,30 @@
+# Opik 本地自托管 — 简化版 docker-compose
+#
+# 官方推荐姿势:
+#     git clone https://github.com/comet-ml/opik.git
+#     cd opik
+#     ./opik.sh           # macOS / Linux
+#     .\opik.ps1          # Windows PowerShell
+#
+# 上面的脚本内部会拉起完整的 docker-compose 栈 (含前后端 + MySQL + ClickHouse + Redis 等).
+# 它会:
+#   1) 自动检查端口冲突 (5173 / 3003 / 8123 ...)
+#   2) 拉镜像 + 启容器
+#   3) 等待健康检查 ready
+#   4) 在浏览器自动打开 http://localhost:5173
+#
+# 本文件保留作为 "提示 + 启动捷径"; 真要起服务还是用上面的脚本.
+
+# Quick check: 直接 docker compose -f deployment/docker-compose/docker-compose.yaml up -d
+# (在 opik repo 根目录下)
+
+version: "3"
+
+services:
+  noop:
+    image: busybox
+    command: >
+      sh -c 'echo "Opik 推荐用 official 脚本启动:";
+             echo "  git clone https://github.com/comet-ml/opik.git";
+             echo "  cd opik && .\\opik.ps1   (Windows)  /  ./opik.sh   (Linux/macOS)";
+             echo "完整 compose 在 opik 仓库 deployment/docker-compose/ 下."'

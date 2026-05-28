@@ -1,0 +1,28 @@
+# Arize Phoenix 本地自托管
+#
+# 启动: docker compose up -d
+# 关闭: docker compose down
+# 升级: docker compose pull && docker compose up -d
+#
+# 默认访问 http://localhost:6006 (UI + OTLP HTTP)
+# OTLP gRPC 端口 4317
+#
+# Phoenix 默认走 SQLite (持久化在 ./phoenix-data 目录), 适合单机/团队使用.
+# 多人生产建议改用 Postgres backend (PHOENIX_SQL_DATABASE_URL=postgresql://...).
+services:
+  phoenix:
+    image: arizephoenix/phoenix:version-8.0.0
+    restart: unless-stopped
+    ports:
+      - "6006:6006"   # UI + OTLP/HTTP
+      - "4317:4317"   # OTLP/gRPC (更高吞吐场景)
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+      # PHOENIX_ENABLE_AUTH: "true"
+      # PHOENIX_SECRET: "ChangeMeToARandomLongString0123456789abcdef"
+      # PHOENIX_SQL_DATABASE_URL: postgresql://phoenix:phoenix@postgres:5432/phoenix
+    volumes:
+      - phoenix-data:/mnt/data
+
+volumes:
+  phoenix-data:

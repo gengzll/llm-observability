@@ -1,0 +1,26 @@
+# 合集安装 (一次性装齐 4 个框架, 便于在同一个 venv 跑所有 demo)
+# 如果只想隔离, 每个 demo 子目录都有自己的 requirements.txt
+
+# --- 公共基础 ---
+python-dotenv>=1.0.0
+langgraph>=0.2.50
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+openai>=1.50.0
+
+# --- 1) LangSmith ---
+langsmith>=0.2.0
+openevals>=0.0.5
+
+# --- 2) Langfuse ---
+langfuse>=3.0.0
+
+# --- 3) Phoenix ---
+arize-phoenix>=8.0.0
+arize-phoenix-otel>=0.6.0
+arize-phoenix-evals>=0.18.0
+openinference-instrumentation-langchain>=0.1.30
+
+# --- 4) Opik ---
+opik>=1.5.0
