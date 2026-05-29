@@ -316,6 +316,8 @@ ds.insert(items=[{"input":..., "expected":...}])
 
 | 维度           | LangSmith         | Langfuse              | Phoenix                       | Opik              |
 | -------------- | ----------------- | --------------------- | ----------------------------- | ----------------- |
+| 官网           | [smith.langchain.com](https://smith.langchain.com/) | [langfuse.com](https://langfuse.com/) | [phoenix.arize.com](https://phoenix.arize.com/) | [comet.com/opik](https://www.comet.com/site/products/opik/) |
+| GitHub 仓库 (star ★) | [langchain-ai/langsmith-sdk](https://github.com/langchain-ai/langsmith-sdk) — **907 ★**（仅 SDK，平台闭源） | [langfuse/langfuse](https://github.com/langfuse/langfuse) — **28.2k ★** | [Arize-ai/phoenix](https://github.com/Arize-ai/phoenix) — **9.9k ★** | [comet-ml/opik](https://github.com/comet-ml/opik) — **19.4k ★** |
 | 开发方         | LangChain Inc.    | Langfuse GmbH (DE)    | Arize AI                      | Comet ML          |
 | 开源协议       | 闭源 (SaaS only)  | MIT (主仓) + EE       | Elastic v2 (OSS-friendly)     | Apache 2.0        |
 | 自托管         | 仅企业版          | docker-compose 一键   | 单容器一键 (最轻)             | 官方安装脚本      |
@@ -323,6 +325,8 @@ ds.insert(items=[{"input":..., "expected":...}])
 | 默认 UI 端口   | -                 | 3000                  | 6006                          | 5173              |
 | 主要付费形态   | SaaS 订阅         | Cloud + EE license    | Arize AX 商用版               | Comet Cloud       |
 | 与 OTel 生态   | 不兼容            | v3+ 原生 OTel         | 完全 OTel (OpenInference)      | 不兼容            |
+
+> Star 数为 2026-05-29 GitHub API 实时查询。LangSmith 平台本身闭源，列出的仓库是其 Python SDK；Langfuse / Phoenix / Opik 是真实的平台主仓。社区热度对比时，需扣除"完整平台 vs 单 SDK"这一差异。
 
 ### 6.2 各家优缺点
 
