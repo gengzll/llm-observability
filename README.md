@@ -4,6 +4,8 @@
 
 所有 demo 基于**同一个 LangGraph 客服 Agent**（`common/sample_agent.py`），覆盖 Tracing / Evaluation / Prompt 管理 / Dataset 四类能力，方便横向比较 DX 和能力边界。
 
+> 想直接「动手跑」？看 [RUNNING.md](RUNNING.md) —— 16 个 demo 全跑通的实测命令清单，可直接复制粘贴，含 8 条踩坑亲测解决方案。
+
 ---
 
 ## 0. TL;DR — 一句话选型
