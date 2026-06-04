@@ -1,16 +1,12 @@
 """Langfuse — 离线评估 (Dataset Experiments).
 
-Langfuse 的评估范式: **dataset.run(name) 包裹一个 trace**, 让框架知道这条 trace
-属于哪个 experiment. 你需要在每条 trace 上自己写评分逻辑 (score), 再 link 回 trace.
+Langfuse v3 SDK 提供统一 API ``langfuse.run_experiment(name, data, task, evaluators)``,
+和 Phoenix ``run_experiment`` / Opik ``evaluate`` 风格一致.
 
 工作流:
-    1. 04_dataset.py 把测试集传到 Langfuse
-    2. 本文件遍历 dataset.items, 每条 item:
-          - 用 item.run(run_name=...) 起一个 experiment span
-          - 跑 agent, 拿到 output
-          - 用 LLM-as-judge 算分
-          - langfuse.create_score() 把分数挂到当前 trace
-    3. UI > Datasets > Runs 里能看到所有 trace 的得分汇总
+    1. 04_dataset.py 先把测试集上传到 Langfuse
+    2. 本文件定义 task(item) -> output  和 evaluators(input, output, expected_output)
+    3. langfuse.run_experiment 自动遍历 dataset, 并发跑 task + evaluators, 上报 UI
 """
 
 import sys
@@ -21,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langfuse import get_client
-from langfuse.langchain import CallbackHandler
+from langfuse.experiment import Evaluation
 
 from common.sample_agent import ask, build_agent, build_llm
 from common.sample_dataset import DATASET_NAME
@@ -51,33 +47,55 @@ def llm_as_judge(question: str, output: str, expected: str) -> float:
         return 0.0
 
 
-def run_experiment(run_name: str = "baseline-gpt-4o-mini") -> None:
+# ---------------------------------------------------------------------------
+# task: 接收 dataset item, 跑 agent, 返回 output
+# ---------------------------------------------------------------------------
+def task(*, item, **kwargs):
+    agent = build_agent()
+    return ask(agent, item.input["input"])
+
+
+# ---------------------------------------------------------------------------
+# evaluator: 接收 input/output/expected_output, 返回 evaluation dict
+# ---------------------------------------------------------------------------
+def correctness_evaluator(*, input, output, expected_output, **kwargs):
+    score = llm_as_judge(
+        question=input["input"],
+        output=output,
+        expected=expected_output["output"],
+    )
+    return Evaluation(name="correctness", value=score)
+
+
+def length_evaluator(*, output, **kwargs):
+    """启发式: 答案长度 10-200 字符算合理."""
+    length = len(output)
+    return Evaluation(
+        name="length_ok",
+        value=1.0 if 10 <= length <= 200 else 0.0,
+        comment=f"length={length}",
+    )
+
+
+def run_experiment(run_name: str = "baseline-glm-4-flash") -> None:
     langfuse = get_client()
     dataset = langfuse.get_dataset(DATASET_NAME)
 
-    for item in dataset.items:
-        # 关键: item.run() 把这次执行 link 回 dataset, 跑完 UI 可见
-        with item.run(
-            run_name=run_name,
-            run_description="baseline run with gpt-4o-mini",
-        ) as root_span:
-            handler = CallbackHandler()
-            agent = build_agent()
-            answer = ask(
-                agent, item.input["input"], config={"callbacks": [handler]}
-            )
-
-            score = llm_as_judge(
-                question=item.input["input"],
-                output=answer,
-                expected=item.expected_output["output"],
-            )
-
-            # 把分数挂到这次 run 上
-            root_span.score_trace(name="correctness", value=score)
-
+    result = langfuse.run_experiment(
+        name="baseline",
+        run_name=run_name,
+        description="baseline run with glm-4-flash",
+        data=dataset.items,
+        task=task,
+        evaluators=[correctness_evaluator, length_evaluator],
+        max_concurrency=4,
+    )
     langfuse.flush()
-    print(f"Experiment '{run_name}' 完成, UI > Datasets > {DATASET_NAME} > Runs 查看.")
+    print(f"Experiment '{run_name}' 完成.")
+    print(f"在 UI > Datasets > {DATASET_NAME} > Runs > {run_name} 查看.")
+    # ExperimentResult 含详细分数, 简单摘要打印
+    if hasattr(result, "item_results"):
+        print(f"共 {len(result.item_results)} 个 item 完成.")
 
 
 if __name__ == "__main__":

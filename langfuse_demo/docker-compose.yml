@@ -17,7 +17,15 @@ services:
     image: langfuse/langfuse:3
     restart: unless-stopped
     depends_on:
-      langfuse-worker:
+      # web 启动时跑 Prisma migration, 必须先于 worker. 所以 web 只依赖底层服务,
+      # 不能依赖 worker; 否则 worker 因为 schema 缺失永远 unhealthy → web 永远不启 → 死锁.
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     ports:
       - "3000:3000"
@@ -28,14 +36,21 @@ services:
       NEXTAUTH_SECRET: "mysecret"             # CHANGEME
       NEXTAUTH_URL: http://localhost:3000
       TELEMETRY_ENABLED: "true"
+      # Langfuse v3 自动初始化: 8 个变量必须全填, 缺一个就静默跳过
       LANGFUSE_INIT_ORG_ID: "demo-org"
+      LANGFUSE_INIT_ORG_NAME: "demo-org"
       LANGFUSE_INIT_PROJECT_ID: "demo-project"
+      LANGFUSE_INIT_PROJECT_NAME: "demo-project"
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890abcdef1234567890abcdef"
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-1234567890abcdef1234567890abcdef"
       LANGFUSE_INIT_USER_EMAIL: "admin@local.test"
+      LANGFUSE_INIT_USER_NAME: "admin"
       LANGFUSE_INIT_USER_PASSWORD: "ChangeMe123!"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_CLUSTER_ENABLED: "false"  # 单机 ClickHouse 必须设, 否则 Langfuse 默认走 ReplicatedMergeTree 需要 Zookeeper
       REDIS_HOST: redis
       REDIS_PORT: 6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
@@ -65,6 +80,7 @@ services:
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_CLUSTER_ENABLED: "false"  # 单机 ClickHouse 必须设, 否则 Langfuse 默认走 ReplicatedMergeTree 需要 Zookeeper
       REDIS_HOST: redis
       REDIS_PORT: 6379
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse

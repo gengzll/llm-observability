@@ -47,7 +47,8 @@ def push_initial_prompt():
         prompt_description="电商客服 system prompt",
         version=version,
     )
-    print(f"已推送 prompt '{created.name}' (id={created.id})")
+    # phoenix>=v15: client.prompts.create 返回 PromptVersion, 不含 name 字段
+    print(f"已推送 prompt '{PROMPT_NAME}' (version_id={getattr(created, 'id', '?')})")
 
 
 def pull_and_use_prompt():

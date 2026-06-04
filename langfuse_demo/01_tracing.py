@@ -63,20 +63,22 @@ def demo_observe_decorator():
 # C. 给 trace 打 metadata / tags / user_id
 # ---------------------------------------------------------------------------
 def demo_metadata_and_tags():
-    langfuse = get_client()
-    with langfuse.start_as_current_span(name="tagged-conversation") as span:
-        span.update_trace(
-            user_id="u-1234",
-            session_id="s-5678",
-            tags=["channel:web", "experiment:baseline"],
-            metadata={"version": "v1.0"},
-        )
-        handler = CallbackHandler()
-        agent = build_agent()
-        answer = ask(
-            agent, "A1003 我收到了, 能查到记录吗?", config={"callbacks": [handler]}
-        )
-        print("[C] tagged answer:", answer)
+    """v3 SDK 推荐做法: 通过 config.metadata 直接给当前 trace 打 user_id / session_id / tags.
+    CallbackHandler 会自动把这些字段提到 trace 级别."""
+    handler = CallbackHandler()
+    agent = build_agent()
+    config = {
+        "callbacks": [handler],
+        "run_name": "tagged-conversation",
+        "metadata": {
+            "langfuse_user_id": "u-1234",
+            "langfuse_session_id": "s-5678",
+            "langfuse_tags": ["channel:web", "experiment:baseline"],
+            "version": "v1.0",
+        },
+    }
+    answer = ask(agent, "A1003 我收到了, 能查到记录吗?", config=config)
+    print("[C] tagged answer:", answer)
 
 
 if __name__ == "__main__":
