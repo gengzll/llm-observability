@@ -67,12 +67,21 @@ def pull_and_use_prompt():
 
 
 def pull_specific_label():
-    langfuse = get_client()
+    """演示按 label 拉取 prompt. 首次运行预期没 'staging' label, 会失败."""
+    # Langfuse SDK 内部会向 stderr 打 warning ("not found during refresh, evicting from cache"),
+    # 临时把 SDK logger 调高级别以抑制干扰输出.
+    import logging
+    lf_logger = logging.getLogger("langfuse")
+    old_level = lf_logger.level
+    lf_logger.setLevel(logging.ERROR)
     try:
+        langfuse = get_client()
         prompt = langfuse.get_prompt(PROMPT_NAME, label="staging")
         print(f"成功拉取 staging label v{prompt.version}")
-    except Exception as e:
-        print(f"还没有 staging 版本: {e}")
+    except Exception:
+        print("没有 'staging' label — 这是首次运行的预期行为. 到 UI > Prompts 给某个版本添加 'staging' label 后, 这里就能拉到.")
+    finally:
+        lf_logger.setLevel(old_level)
 
 
 if __name__ == "__main__":

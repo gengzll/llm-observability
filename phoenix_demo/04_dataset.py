@@ -39,7 +39,9 @@ def list_dataset():
     client = Client()
     dataset = client.datasets.get_dataset(dataset=DATASET_NAME)
     for i, example in enumerate(dataset.examples, 1):
-        print(f"[{i}] input={example.input}, output={example.output}")
+        # Phoenix v15 client 返回 example 为 dict, 旧版是对象 — 兼容两种写法
+        get = (lambda k: example[k]) if isinstance(example, dict) else (lambda k: getattr(example, k))
+        print(f"[{i}] input={get('input')}, output={get('output')}")
 
 
 if __name__ == "__main__":

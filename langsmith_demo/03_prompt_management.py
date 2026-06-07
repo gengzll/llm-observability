@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import Client
+from langsmith.utils import LangSmithConflictError
 
 from common.sample_agent import build_llm
 
@@ -28,7 +29,12 @@ PROMPT_NAME = "cs-agent-system"
 
 
 def push_initial_prompt():
-    """把代码里维护的初版 system prompt 推到 LangSmith."""
+    """把代码里维护的初版 system prompt 推到 LangSmith.
+
+    如果 prompt 内容和服务端最新版完全一致, LangSmith 返回 409 Conflict
+    ("Nothing to commit: prompt has not changed since latest commit").
+    本函数 catch 后给出友好提示, 不算失败 — 这是幂等的预期行为.
+    """
     client = Client()
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -40,8 +46,11 @@ def push_initial_prompt():
             ("user", "{question}"),
         ]
     )
-    url = client.push_prompt(PROMPT_NAME, object=prompt)
-    print(f"已推送 prompt {PROMPT_NAME}: {url}")
+    try:
+        url = client.push_prompt(PROMPT_NAME, object=prompt)
+        print(f"已推送 prompt {PROMPT_NAME}: {url}")
+    except LangSmithConflictError:
+        print(f"prompt {PROMPT_NAME} 内容未变, 复用已有版本 (409 是预期, 表示已是最新).")
 
 
 def pull_and_use_prompt():
@@ -61,17 +70,18 @@ def pull_and_use_prompt():
 
 
 def pull_specific_version():
-    """按版本 / tag 拉取 (生产环境建议用 tag 锁版本)."""
+    """演示按 tag 拉取 prompt (生产环境建议用 tag 锁版本).
+
+    首次运行预期会失败 — 因为还没打过 :prod tag.
+    在 UI > Prompts > 选某个 commit > 打 'prod' tag 后, 这里就能拉到.
+    """
     client = Client()
-    # 按 commit hash:
-    # prompt = client.pull_prompt(f"{PROMPT_NAME}:abc123ef")
-    # 按 tag (需在 UI 里给 commit 打 tag):
     try:
         prompt = client.pull_prompt(f"{PROMPT_NAME}:prod")
         print("成功拉取 :prod tag")
         return prompt
-    except Exception as e:
-        print(f"还没有 :prod tag (这是正常的, 首次运行时还没打 tag): {e}")
+    except Exception:
+        print("没有 :prod tag — 这是首次运行的预期行为. 到 UI > Prompts 给某个 commit 打 'prod' tag 后, 这里就能拉到.")
 
 
 if __name__ == "__main__":

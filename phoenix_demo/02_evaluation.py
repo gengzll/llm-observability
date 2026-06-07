@@ -10,6 +10,7 @@ Phoenix 的评估范式叫 **Experiment**:
     4. run_experiment 自动 fan-out 跑所有样本 + 评分, 上报 UI
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -39,10 +40,10 @@ def task(example) -> str:
 
 
 # ---------------------------------------------------------------------------
-# evaluator: (output, expected) -> score
+# evaluator: (output, expected) -> dict
 #
-# 可以是普通函数返回 float / bool / dict, 也可以是 phoenix.evals 提供的
-# ClassificationEvaluator (LLM-as-judge with 选项分类). 这里两种都演示.
+# 推荐返回 dict (score + label + explanation), 这样 Phoenix UI 评估列显示完整;
+# 只返回 float 时, UI 上只能看到孤零零的数字, label / explanation 一片空白.
 # ---------------------------------------------------------------------------
 JUDGE_PROMPT = """\
 你是评审, 判断 [候选答案] 是否在语义上等价于 [参考答案]:
@@ -57,14 +58,20 @@ JUDGE_PROMPT = """\
 """
 
 
-def correctness_evaluator(output: str, expected: str) -> float:
-    """自定义 LLM-as-judge — 普通 Python 函数."""
+def correctness_evaluator(output: str, expected: str) -> dict:
+    """LLM-as-judge — 返回完整 dict 让 Phoenix UI 显示 score/label/explanation."""
     llm = build_llm(temperature=0.0)
     resp = llm.invoke(JUDGE_PROMPT.format(output=output, expected=expected))
+    raw = resp.content.strip()
     try:
-        return float(resp.content.strip().split()[0])
+        score = float(raw.split()[0])
     except (ValueError, IndexError):
-        return 0.0
+        score = 0.0
+    return {
+        "score": score,
+        "label": "correct" if score >= 0.8 else "partial" if score >= 0.4 else "incorrect",
+        "explanation": f"judge raw: {raw[:80]}",
+    }
 
 
 def length_evaluator(output: str) -> dict:
@@ -81,12 +88,14 @@ def run_experiment():
     client = Client()
     dataset = client.datasets.get_dataset(dataset=DATASET_NAME)
 
+    # 自动读取当前 .env 里的 OPENAI_MODEL, 作为 experiment 名后缀; 默认 'unknown'.
+    model = os.getenv("OPENAI_MODEL", "unknown")
     experiment = client.experiments.run_experiment(
         dataset=dataset,
         task=task,
         evaluators=[correctness_evaluator, length_evaluator],
-        experiment_name="baseline-gpt-4o-mini",
-        experiment_description="baseline run with gpt-4o-mini",
+        experiment_name=f"baseline-{model}",
+        experiment_description=f"baseline run with {model}",
     )
     print(f"Experiment 完成: {experiment}")
     print("到 http://localhost:6006 > Datasets > Experiments 查看.")

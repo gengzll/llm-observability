@@ -71,12 +71,13 @@ def pull_and_use_prompt():
 
 
 def pull_by_tag():
+    """演示按 tag 拉取 prompt. 首次运行预期会失败 — 因为还没打过 :prod tag."""
     client = Client()
     try:
         prompt = client.prompts.get(prompt_identifier=PROMPT_NAME, tag="prod")
         print(f"成功拉取 :prod tag (version={prompt.id})")
-    except Exception as e:
-        print(f"还没有 :prod tag, 可以到 UI > Prompts 给 version 打 tag: {e}")
+    except Exception:
+        print("没有 :prod tag — 这是首次运行的预期行为. 到 UI > Prompts 给某个 version 打 'prod' tag 后, 这里就能拉到.")
 
 
 if __name__ == "__main__":

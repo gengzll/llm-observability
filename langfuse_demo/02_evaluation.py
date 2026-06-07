@@ -9,6 +9,7 @@ Langfuse v3 SDK 提供统一 API ``langfuse.run_experiment(name, data, task, eva
     3. langfuse.run_experiment 自动遍历 dataset, 并发跑 task + evaluators, 上报 UI
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -56,7 +57,7 @@ def task(*, item, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# evaluator: 接收 input/output/expected_output, 返回 evaluation dict
+# evaluator: 接收 input/output/expected_output, 返回 Evaluation 对象
 # ---------------------------------------------------------------------------
 def correctness_evaluator(*, input, output, expected_output, **kwargs):
     score = llm_as_judge(
@@ -77,14 +78,17 @@ def length_evaluator(*, output, **kwargs):
     )
 
 
-def run_experiment(run_name: str = "baseline-glm-4-flash") -> None:
+def run_experiment(run_name: str | None = None) -> None:
+    # 自动读取当前 .env 里的 OPENAI_MODEL 作为 run 名后缀; 默认 'unknown'.
+    model = os.getenv("OPENAI_MODEL", "unknown")
+    run_name = run_name or f"baseline-{model}"
     langfuse = get_client()
     dataset = langfuse.get_dataset(DATASET_NAME)
 
     result = langfuse.run_experiment(
         name="baseline",
         run_name=run_name,
-        description="baseline run with glm-4-flash",
+        description=f"baseline run with {model}",
         data=dataset.items,
         task=task,
         evaluators=[correctness_evaluator, length_evaluator],
@@ -93,7 +97,6 @@ def run_experiment(run_name: str = "baseline-glm-4-flash") -> None:
     langfuse.flush()
     print(f"Experiment '{run_name}' 完成.")
     print(f"在 UI > Datasets > {DATASET_NAME} > Runs > {run_name} 查看.")
-    # ExperimentResult 含详细分数, 简单摘要打印
     if hasattr(result, "item_results"):
         print(f"共 {len(result.item_results)} 个 item 完成.")
 

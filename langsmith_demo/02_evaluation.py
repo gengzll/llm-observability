@@ -14,6 +14,7 @@
     4. client.evaluate(...) 自动遍历 dataset, 跑 target, 跑 evaluator, 上报 UI
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -51,18 +52,12 @@ def llm_as_judge(question: str, output: str, expected: str) -> float:
         return 0.0
 
 
-# ---------------------------------------------------------------------------
-# target: 把 agent 包成 (inputs -> outputs) 的函数
-# ---------------------------------------------------------------------------
 def target(inputs: dict) -> dict:
     agent = build_agent()
     answer = ask(agent, inputs["input"])
     return {"output": answer}
 
 
-# ---------------------------------------------------------------------------
-# evaluators: 手写 LLM-as-judge + 启发式长度检查
-# ---------------------------------------------------------------------------
 def correctness_evaluator(inputs: dict, outputs: dict, reference_outputs: dict):
     score = llm_as_judge(
         question=inputs["input"],
@@ -81,16 +76,15 @@ def length_evaluator(outputs: dict):
     }
 
 
-# ---------------------------------------------------------------------------
-# 跑评估
-# ---------------------------------------------------------------------------
 def run_evaluation():
     client = Client()
+    # 自动读取当前 .env 里的 OPENAI_MODEL 作为 experiment 名前缀
+    model = os.getenv("OPENAI_MODEL", "unknown")
     results = client.evaluate(
         target,
         data=DATASET_NAME,
         evaluators=[correctness_evaluator, length_evaluator],
-        experiment_prefix="baseline-glm-4-flash",
+        experiment_prefix=f"baseline-{model}",
         max_concurrency=4,
     )
     print("评估完成, 在 LangSmith UI > Experiments 查看结果.")
