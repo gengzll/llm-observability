@@ -55,6 +55,15 @@ python phoenix_native_demo\00_launch_phoenix.py
   保持此窗口运行 -- 按 Ctrl+C 关闭 server.
 ```
 
+**首次启动注意**：Phoenix 启动时会从 GitHub Release 下载一个 ~26 MB 的 CPython WASM binary（用于安全沙箱执行用户代码）。**国内网络可能要等 1-3 分钟**，看着像卡住其实是在下载。下载完后缓存到 `~/.phoenix/wasm/`，**后续启动秒起**。
+
+  如果你完全用不到 sandbox 且不想等下载（CI / 离线环境），设置：
+  ```powershell
+  $env:PHOENIX_WASM_BINARY_PATH="C:\path\to\any\non-empty\file"
+  $env:PHOENIX_ALLOWED_SANDBOX_PROVIDERS="NONE"
+  ```
+  然后再起。
+
 **端口冲突**：如果之前 docker 起过 Phoenix，先停掉：
 ```powershell
 docker compose -f phoenix_demo\docker-compose.yml stop
