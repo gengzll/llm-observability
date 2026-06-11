@@ -1,0 +1,17 @@
+python-dotenv>=1.0.0
+
+# 裸 OpenAI SDK (走 OPENAI_BASE_URL, 可指智谱 / DeepSeek / 火山 / 本地 vLLM 等)
+openai>=1.50.0
+
+# Phoenix 内嵌 server + 客户端 + 评估
+arize-phoenix>=8.0.0
+arize-phoenix-otel>=0.6.0
+arize-phoenix-evals>=0.18.0
+arize-phoenix-client>=1.0.0
+
+# 自动 instrument OpenAI SDK (替代 instrumentation-langchain)
+openinference-instrumentation-openai>=0.1.20
+
+# 给 agent.run / tool.* 手埋 span 用
+opentelemetry-api>=1.27.0
+opentelemetry-sdk>=1.27.0
