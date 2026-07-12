@@ -1,0 +1,13 @@
+python-dotenv>=1.0.0
+
+# LLM 调用 (走 OPENAI_BASE_URL 到智谱 / DeepSeek / vLLM / OpenAI 官方等)
+openai>=1.50.0
+
+# MLflow 3.0+ (tracing / evaluate / prompt registry / datasets)
+mlflow>=3.0.0
+pandas>=2.0.0
+
+# LangGraph 版 agent 依赖
+langgraph>=0.2.50
+langchain>=0.3.0
+langchain-openai>=0.2.0
