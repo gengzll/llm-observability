@@ -13,10 +13,11 @@
 - [2. Langfuse demo](#2-langfuse-demo)
 - [3. LangSmith demo](#3-langsmith-demo)
 - [4. Opik demo](#4-opik-demo)
-- [5. 端口 + 资源占用速查](#5-端口--资源占用速查)
-- [6. 实战踩坑（亲测 8 条）](#6-实战踩坑亲测-8-条)
-- [7. 常用诊断命令](#7-常用诊断命令)
-- [8. 完全清理](#8-完全清理)
+- [5. MLflow demo](#5-mlflow-demo)
+- [6. 端口 + 资源占用速查](#6-端口--资源占用速查)
+- [7. 实战踩坑（亲测 10 条）](#7-实战踩坑亲测-10-条)
+- [8. 常用诊断命令](#8-常用诊断命令)
+- [9. 完全清理](#9-完全清理)
 
 ---
 
@@ -412,7 +413,86 @@ cd D:\work\llm-observability
 
 ---
 
-## 5. 端口 + 资源占用速查
+## 5. MLflow demo
+
+**跟 Phoenix native 一样不用 docker**（本地 `mlflow server` 一句话起），特别适合已经用 Databricks / MLflow 管 ML 实验的团队。
+
+### 5.1 补装依赖
+
+MLflow 不在合集 `requirements.txt` 里（要求较新版本），单独补装：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install "mlflow>=3.0.0" "pandas>=2.0.0"
+```
+
+### 5.2 起服务（**终端 1，保持运行**）
+
+```powershell
+python mlflow_demo\00_launch_mlflow.py
+```
+
+输出：
+```
+  MLflow tracking : http://localhost:5000/
+  Backend        : sqlite:///C:\Users\<you>\.mlflow\mlflow.db
+  Artifact root  : mlflow-artifacts:/ (server proxied)
+  Artifacts dest : file:///C:/Users/<you>/.mlflow/artifacts
+  保持此窗口运行 -- 按 Ctrl+C 关闭 server.
+```
+
+**端口冲突**：如果 5000 被别的服务占，改 `00_launch_mlflow.py` 里 `--port 5000` 为其他端口，同时其他 demo 跑前设 `$env:MLFLOW_TRACKING_URI="http://localhost:<新端口>"`。
+
+### 5.3 跑 4 个 demo（**终端 2**）
+
+```powershell
+$env:PYTHONIOENCODING="utf-8"; chcp 65001 | Out-Null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+.\.venv\Scripts\Activate.ps1
+
+python mlflow_demo\01_tracing.py            # 3 native + 2 langgraph 两个 experiment
+python mlflow_demo\04_dataset.py            # 7 条 dataset log 到 run
+python mlflow_demo\02_evaluation.py         # 7 sample × 2 metric = 14 分, ~1-2 分钟
+python mlflow_demo\03_prompt_management.py  # register_prompt / load_prompt (v1 / v2)
+```
+
+### 5.4 看 UI
+
+打开 http://localhost:5000：
+
+| 想看什么           | UI 路径                                                                |
+| ------------------ | --------------------------------------------------------------------- |
+| Trace 嵌套结构     | Experiments > **mlflow-native-demo** / **mlflow-langgraph-demo** > 点某个 run 打开右边 Trace tab |
+| Dataset           | Experiments > **mlflow-dataset-demo** > dataset-upload > Datasets tab  |
+| 评估分数 + 详细结果 | Experiments > **mlflow-eval-demo** > baseline-glm-4-flash > Metrics + Artifacts (`eval_results.csv`) |
+| Prompt            | 顶部导航 **Prompts** > `cs-agent-mlflow-system` (Playground 能试跑)     |
+
+### 5.5 已知警告（无害）
+
+- `MLflow job execution requirements not met (does not support Windows system)` — MLflow 3.x 的 job 特性不支持 Windows；只跑 tracing/eval/prompt 不需要 job，忽略即可
+- `The specified dataset source can be interpreted in multiple ways` — MLflow 会自动选 LocalArtifactDatasetSource
+- Prompt 拉 `@production` alias 报 not found — 首次运行的预期行为
+- `FutureWarning: mlflow.register_prompt ... moved to mlflow.genai namespace` — MLflow 3.14 迁移，本仓库已用新 API 避免这条
+
+### 5.6 关停
+
+终端 1 里 Ctrl+C，数据保留在 `~/.mlflow/mlflow.db` 和 `~/.mlflow/artifacts/`。下次 `python 00_launch_mlflow.py` 秒起（数据库和缓存都在）。
+
+**清空重来**（换 model / 重跑基线时想清空历史）：
+
+```powershell
+# 先 Ctrl+C 停 server, 然后
+Remove-Item -Force "$env:USERPROFILE\.mlflow\mlflow.db" -ErrorAction SilentlyContinue
+```
+
+Windows sandbox 有时会保护 `%USERPROFILE%` 下的删除，如果失败改用 bash：
+
+```bash
+rm -f "C:/Users/gengz/.mlflow/mlflow.db"
+```
+
+---
+
+## 6. 端口 + 资源占用速查
 
 | 服务                                    | 端口      | 内存 (运行时)  | 启动时长     |
 | --------------------------------------- | --------- | -------------- | ------------ |
@@ -425,68 +505,84 @@ cd D:\work\llm-observability
 | Opik (python-backend)                   | 内部 8000 | ~500 MB        | ~30 秒        |
 | Opik (mysql + clickhouse + redis + zookeeper + minio) | - | ~2 GB | ~60 秒  |
 | LangSmith                               | -         | 0 (云端)       | 0             |
+| MLflow (server, SQLite + serve-artifacts) | 5000    | ~200 MB        | ~10 秒        |
+| Phoenix native (launch_app 内嵌)         | 6006 / 4317 | ~500 MB      | ~30 秒 首启 (首次要下 26MB WASM), 之后秒起 |
 
 **同时跑 Phoenix + Langfuse + Opik 总内存**：~ 8-10 GB。**建议机器 ≥ 16GB**，不用时 `docker compose stop` 关停省内存。
 
-镜像磁盘占用：~ 9-10 GB（4 家全装）。
+**只跑 MLflow / Phoenix native**：~ 500 MB - 1 GB 就够，笔记本无压力。
+
+镜像磁盘占用：~ 9-10 GB（4 家全装）。MLflow / Phoenix native 不用镜像，只占 SQLite / WASM 缓存约 100 MB。
 
 ---
 
-## 6. 实战踩坑（亲测 8 条）
+## 7. 实战踩坑（亲测 10 条）
 
 按踩到的频率排：
 
-### 6.1 国内 pip 不配镜像 → pip install 卡 10+ 分钟
+### 7.1 国内 pip 不配镜像 → pip install 卡 10+ 分钟
 
 **症状**：`pip install -r requirements.txt` 看不到任何进度，但 python 进程在跑。
 **根因**：默认走 pypi.org，国内极慢。
 **修复**：[0.2 节](#02-配-pip-镜像源国内必须)。
 
-### 6.2 Langfuse 单机 ClickHouse 缺 `CLICKHOUSE_CLUSTER_ENABLED=false`
+### 7.2 Langfuse 单机 ClickHouse 缺 `CLICKHOUSE_CLUSTER_ENABLED=false`
 
 **症状**：langfuse-web 日志 `error: failed to open database: There is no Zookeeper configuration in server config`，反复 Restarting。
 **根因**：Langfuse v3 默认假设 ClickHouse 是集群（`ON CLUSTER default` + `ReplicatedMergeTree`），需要 Zookeeper 协调；单机模式不存在 Zookeeper 配置。
 **修复**：`langfuse-web` 和 `langfuse-worker` 的 environment 加 `CLICKHOUSE_CLUSTER_ENABLED: "false"`。本仓库 `langfuse_demo/docker-compose.yml` 已修。
 
-### 6.3 Langfuse MinIO `langfuse` bucket 不存在
+### 7.3 Langfuse MinIO `langfuse` bucket 不存在
 
 **症状**：trace 上报 500 Internal Server Error，worker 日志 `Failed to upload JSON to S3 ... The specified bucket does not exist`。
 **根因**：MinIO 启动时不会自动建 bucket，Langfuse compose 也没加 init service。
 **修复**：[2.3 节](#23--必做创建-minio-bucket) 的 `mc mb` 命令。
 
-### 6.4 Langfuse INIT 必须 8 个全填
+### 7.4 Langfuse INIT 必须 8 个全填
 
 **症状**：`docker compose up` 起来后 UI 空空如也，没 demo-org / demo-project。
 **根因**：Langfuse 检测 8 个 `LANGFUSE_INIT_*` 变量必须全填才执行初始化，缺一个**静默跳过**。
 **修复**：本仓库 compose 已补全 `LANGFUSE_INIT_USER_NAME` / `LANGFUSE_INIT_ORG_NAME` / `LANGFUSE_INIT_PROJECT_NAME` / `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` / `LANGFUSE_INIT_PROJECT_SECRET_KEY`。
 
-### 6.5 Phoenix client v15+ 不兼容 v8 server
+### 7.5 Phoenix client v15+ 不兼容 v8 server
 
 **症状**：`python phoenix_demo\04_dataset.py` 报 `KeyError: 'version_id'`。
 **根因**：`arize-phoenix-client>=15.0` 期望 server 返回 `version_id` 字段，v8 server 没这个字段。
 **修复**：compose 用 `arizephoenix/phoenix:latest`（v15+），别 pin 到 `version-8.0.0`。本仓库已修。
 
-### 6.6 Opik 不带 `--profile opik` 只起底层
+### 7.6 Opik 不带 `--profile opik` 只起底层
 
 **症状**：`docker compose up -d` 看似成功，但只有 mysql/clickhouse/redis/zookeeper/minio，没 opik-backend/frontend/python-backend。
 **根因**：Opik 给应用层服务打了 `profiles: [opik]` 标签，不带 profile 不启动。
 **修复**：`docker compose -f deployment/docker-compose/docker-compose.yaml --profile opik up -d`。
 
-### 6.7 智谱不支持 OpenAI JSON mode → openevals 失败
+### 7.7 智谱不支持 OpenAI JSON mode → openevals 失败
 
 **症状**：LangSmith demo `02_evaluation.py` 评估器报 `OutputParserException('Invalid json output: Score: 4/5...')`。
 **根因**：`openevals` 的 LLM-as-judge 依赖 OpenAI 的 structured output / JSON mode，智谱（DeepSeek 等）兼容网关不支持。
 **修复**：不用 `openevals`，手写 LLM-as-judge prompt（"只输出一个数字"）。本仓库 `langsmith_demo/02_evaluation.py` 已改。
 
-### 6.8 PowerShell 默认 GBK → Python 输出中文乱码
+### 7.8 PowerShell 默认 GBK → Python 输出中文乱码
 
 **症状**：`python xxx.py` 输出 `���Ķ��� A1001 �ѷ���` 这种乱码。
 **根因**：Windows PowerShell 控制台默认 GBK，Python stdout 默认 locale 编码不一致。
 **修复**：[0.6 节](#06-powershell-中文不乱码每次新开窗口都要做) 的 3 行命令。
 
+### 7.9 MLflow `--default-artifact-root` 必须带 URI scheme
+
+**症状**：`WARNING mlflow.tracing.export.mlflow_v3: Failed to send trace to MLflow backend: Could not find a registered artifact repository for: c:\Users\...\artifacts/1/traces/tr-...`。Agent 跑通，答案输出，但 trace 没入库。
+**根因**：MLflow 3.x client 不接受裸 Windows 路径作 artifact repo，需要 URI scheme（`file:///`、`mlflow-artifacts:/` 等）。
+**修复**：`mlflow server` 启动加 `--default-artifact-root mlflow-artifacts:/` + `--artifacts-destination file:///<abs-path>` + `--serve-artifacts` 让 server 代理 artifact 上传。本仓库 `mlflow_demo/00_launch_mlflow.py` 已配。
+
+### 7.10 MLflow 3.14+ prompt API 迁移到 `mlflow.genai` namespace
+
+**症状**：`FutureWarning: The mlflow.register_prompt API is moved to the mlflow.genai namespace.`
+**根因**：MLflow 3.14 起把 prompt registry 从顶层 API 迁到 `mlflow.genai` 命名空间，老 API 仍能用但会 deprecated。
+**修复**：改用 `mlflow.genai.register_prompt(...)` 和 `mlflow.genai.load_prompt(...)`，签名不变。本仓库 `mlflow_demo/03_prompt_management.py` 已改。
+
 ---
 
-## 7. 常用诊断命令
+## 8. 常用诊断命令
 
 ### 看所有容器状态
 
@@ -539,19 +635,24 @@ pip list | findstr /i "langgraph langchain langsmith langfuse phoenix opik"
 
 ---
 
-## 8. 完全清理
+## 9. 完全清理
 
-### 8.1 关停所有服务（保留数据）
+### 9.1 关停所有服务（保留数据）
 
 ```powershell
+# docker 的 3 家
 docker compose -f phoenix_demo\docker-compose.yml stop
 docker compose -f langfuse_demo\docker-compose.yml stop
 cd opik_demo\opik-main
 docker compose -f deployment/docker-compose/docker-compose.yaml --profile opik stop
 cd D:\work\llm-observability
+
+# 非 docker 的两家: 各自终端 1 按 Ctrl+C
+#   phoenix_native_demo/00_launch_phoenix.py
+#   mlflow_demo/00_launch_mlflow.py
 ```
 
-### 8.2 删容器 + 数据（不留任何痕迹）
+### 9.2 删容器 + 数据（不留任何痕迹）
 
 ```powershell
 # Phoenix
@@ -566,7 +667,7 @@ docker compose -f deployment/docker-compose/docker-compose.yaml --profile opik d
 cd D:\work\llm-observability
 ```
 
-### 8.3 删镜像（释放 ~10 GB）
+### 9.3 删镜像（释放 ~10 GB）
 
 ```powershell
 docker rmi arizephoenix/phoenix:latest
@@ -582,14 +683,32 @@ docker rmi postgres:15 clickhouse/clickhouse-server:24 redis:7 minio/minio:lates
 docker system prune -a
 ```
 
-### 8.4 删 venv
+### 9.4 删 venv
 
 ```powershell
 Remove-Item -Recurse -Force .venv
 ```
 
-### 8.5 删源码（如果不再需要）
+### 9.5 删源码（如果不再需要）
 
 ```powershell
 Remove-Item -Recurse -Force opik_demo\opik-main
+```
+
+### 9.6 清 MLflow / Phoenix native 数据（本地 SQLite）
+
+```powershell
+# MLflow (SQLite + artifacts)
+Remove-Item -Force "$env:USERPROFILE\.mlflow\mlflow.db" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:USERPROFILE\.mlflow\artifacts\*" -ErrorAction SilentlyContinue
+
+# Phoenix native (SQLite + WASM 缓存)
+Remove-Item -Recurse -Force "$env:USERPROFILE\.phoenix" -ErrorAction SilentlyContinue
+```
+
+Windows sandbox 有时保护 `%USERPROFILE%` 下的删除；如果 PowerShell 报错，改用 bash：
+
+```bash
+rm -f "C:/Users/gengz/.mlflow/mlflow.db"
+rm -rf "C:/Users/gengz/.phoenix"
 ```
